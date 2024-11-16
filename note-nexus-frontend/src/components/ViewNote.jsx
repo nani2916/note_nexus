@@ -56,7 +56,7 @@ const ViewNote = () => {
                   readOnly={true}
                   theme="bubble"
                   modules={modules}
-                  className="h-48 mb-4"
+                  className="w-full text-white"
                 />
               </div>
             </div>

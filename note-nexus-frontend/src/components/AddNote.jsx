@@ -126,7 +126,7 @@ const AddNote = () => {
                   placeholder="Enter Content"
                   required
                   modules={modules}
-                  className="w-full"
+                  className="w-full text-white"
                 />
               </div>
             </div>

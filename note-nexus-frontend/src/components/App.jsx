@@ -29,7 +29,6 @@ function App() {
         <Route path="/delete-note/:id" element={<DeleteNote />} />
         <Route path="/edit-profile" element={<EditProfile />} />
         <Route path="/change-password" element={<ChangePassword />} />
-
       </Routes>
     </div>
   );

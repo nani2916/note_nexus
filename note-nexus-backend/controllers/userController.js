@@ -78,8 +78,8 @@ const add_note = async (req, res) => {
       title,
       content,
       owner,
+      owner_username: uname,
       visibility, 
-      username: uname,
       lastEditedBy: owner
     });
 
@@ -108,7 +108,7 @@ const view_notes = async (req, res) => {
     const notes = await Note.find({
       $or: [
         { visibility: 'public' }, 
-        { username: uname },
+        { owner_username: uname },
       ]
     });
 
@@ -137,12 +137,12 @@ const view_note_by_id = async (req, res) => {
 };
 
 const edit_note = async (req, res) => {
-  const { id, title, content, lastEditedBy } = req.body;
+  const { id, title, content, lastEditedBy, visibility } = req.body;
 
   try {
     const updatedNote = await Note.findByIdAndUpdate(
       id,
-      { title, content, lastEditedBy }, 
+      { title, content, lastEditedBy, visibility}, 
       { new: true, runValidators: true }
     );
 
@@ -162,28 +162,40 @@ const edit_note = async (req, res) => {
 
 const delete_note = async (req, res) => {
   const { id } = req.params; 
-  try {
-    const deletedNote = await Note.findByIdAndDelete(id);
+  const { username } = req.query;
 
-    if (!deletedNote) {
+  try {
+    const note = await Note.findById(id);
+
+    if (!note) {
       return res.status(404).json({
-        success: false,
+        success: true,
         message: "Note not found",
       });
     }
+
+    if (note.owner_username !== username) {
+      return res.status(403).json({
+        success: true,
+        message: "You are not authorized to delete this note",
+      });
+    }
+
+    await Note.findByIdAndDelete(id);
 
     res.status(200).json({
       success: true,
       message: "Note successfully deleted",
     });
   } catch (error) {
-    console.error("Error deleting note:", error);
+
     res.status(500).json({
       success: false,
       message: "Server error. Could not delete note",
     });
   }
 };
+
 
 const getUserProfile = async (req, res) => {
   try {
@@ -208,43 +220,73 @@ const getUserProfile = async (req, res) => {
 };
 
 const updateUserProfile = async (req, res) => {
-  const { uname } = req.params;
+  const { uname } = req.params; 
   const { name, email, mobile, newUname } = req.body; 
 
+   
   try {
     const user = await User.findOne({ uname });
+
+    const oname = user.name;
 
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
+    if (newUname) {
+      const existingUser = await User.findOne({ uname: newUname });
+      if (existingUser) {
+        return res.status(400).json({ message: 'Username already taken' });
+      }
+    }
 
     if (name) user.name = name;
     if (email) user.email = email;
     if (mobile) user.mobile = mobile;
-
-    if (newUname) {
-      const existingUser = await User.findOne({ uname: newUname, name: name});
-      if (existingUser) {
-        return res.status(400).json({ message: 'Username already taken' });
-      }
-      user.uname = newUname;
-    }
+    if (newUname) user.uname = newUname;
 
     const updatedUser = await user.save();
 
+    const updatedName = name || user.name; 
+    const updatedUsername = newUname || uname; 
+
+    await Note.updateMany(
+      { owner_username: uname }, 
+      {
+        $set: {
+          owner: updatedName,
+          owner_username: updatedUsername,
+        },
+      }
+    );
+
+    await Note.updateMany(
+      {
+        $or: [
+          { lastEditedBy: oname }, 
+          { lastEditedBy: null }, 
+        ],
+      },
+      {
+        $set: {
+          lastEditedBy: updatedName, 
+        },
+      }
+    );
+   
     return res.status(200).json({
-      message: 'Profile updated successfully',
+      message: 'Profile and related notes updated successfully',
       user: updatedUser,
-      uname: updatedUser.uname, 
     });
   } catch (error) {
+    console.error('Error updating profile:', error);
     return res.status(500).json({
       message: 'Error updating profile',
       error: error.message,
     });
   }
 };
+
 
 const updatePassword = async (req, res) => {
   try {
